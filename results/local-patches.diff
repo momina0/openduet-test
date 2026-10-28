@@ -1,0 +1,79 @@
+diff --git a/evals/triage/run.ts b/evals/triage/run.ts
+index 856f189..f416ce0 100644
+--- a/evals/triage/run.ts
++++ b/evals/triage/run.ts
+@@ -73,7 +73,7 @@ const toMessage = (item: Labelled): TriageMessage => ({
+   body: item.body,
+ });
+ 
+-const complete = createModelCompleter({
++const rawComplete = createModelCompleter({
+   model: { provider, defaultModel: model } satisfies RuntimeModel,
+   resolveApiKey: async () =>
+     (provider === "anthropic"
+@@ -82,6 +82,22 @@ const complete = createModelCompleter({
+     )?.trim() || null,
+ });
+ 
++// LOCAL PATCH (openduet-test): retry on 429 for OpenRouter's new-account 20 rpm cap.
++const complete: typeof rawComplete = (async (...args: Parameters<typeof rawComplete>) => {
++  for (let attempt = 0; ; attempt++) {
++    try {
++      return await (rawComplete as any)(...args);
++    } catch (error) {
++      const text = error instanceof Error ? error.message : String(error);
++      if (attempt < 8 && /429|rate limit/i.test(text)) {
++        await new Promise((r) => setTimeout(r, 8000));
++        continue;
++      }
++      throw error;
++    }
++  }
++}) as typeof rawComplete;
++
+ type Row = { item: Labelled; result: TriageResult | null; error?: string };
+ const rows: Row[] = [];
+ const queue = [...set];
+@@ -110,7 +126,7 @@ async function worker() {
+     }
+   }
+ }
+-await Promise.all(Array.from({ length: 6 }, worker));
++await Promise.all(Array.from({ length: Number(process.env.TRIAGE_CONCURRENCY ?? 6) }, worker));
+ rows.sort((a, b) => a.item.id.localeCompare(b.item.id));
+ 
+ const decided = rows.filter((row) => row.result);
+@@ -177,7 +193,7 @@ const lines = [
+ await writeFile(
+   join(
+     import.meta.dir,
+-    rulesOnly ? "results-rules-only.md" : `results-${model}.md`,
++    rulesOnly ? "results-rules-only.md" : `results-${model.replaceAll("/", "_")}.md`,
+   ),
+   lines.join("\n"),
+ );
+diff --git a/openbot/examples/openduet/skills.yaml b/openbot/examples/openduet/skills.yaml
+index 0119331..850fbc0 100644
+--- a/openbot/examples/openduet/skills.yaml
++++ b/openbot/examples/openduet/skills.yaml
+@@ -71,6 +71,7 @@ skills:
+       would ask twice. Never say a reply was sent until the tool says so, and if they refuse, say
+       plainly that it was not sent.
+     tools:
++      - google-workspace/gmail_search_messages
+       - google-workspace/gmail_read_message
+       - google-workspace/gmail_send_reply
+ 
+diff --git a/openbot/server/src/learning/ensure-container.ts b/openbot/server/src/learning/ensure-container.ts
+index 916389e..84f7ca2 100644
+--- a/openbot/server/src/learning/ensure-container.ts
++++ b/openbot/server/src/learning/ensure-container.ts
+@@ -130,6 +130,8 @@ export const runCli: RunCli = (args, directory) =>
+         cwd: directory,
+         env: cliEnvironment(),
+         stdio: ["ignore", "pipe", "pipe"],
++        // LOCAL PATCH (openduet-test): Windows refuses to spawn a .cmd without a shell (EINVAL).
++        shell: process.platform === "win32",
+       },
+     );
+     let stdout = "";

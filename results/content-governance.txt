@@ -1,0 +1,6 @@
+card number + CVC          passes (not flagged)
+health detail              passes (not flagged)
+IBAN                       passes (not flagged)
+OpenAI-style key in body   BLOCKED: provider_token
+GitHub token in body       BLOCKED: provider_token
+field named password       BLOCKED: credential_field
