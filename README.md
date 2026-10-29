@@ -27,7 +27,7 @@ Everything ran against the **fake Google** server that ships in the repo (`openb
 
 The README says: *"Every outgoing message is checked for sensitive information, so a card number or a health detail does not go out by accident."*
 
-Both refusals above came from the model's own judgment. Nothing in OpenDuet's prompt mentions cards. The code-level check, `openbot/server/src/plugins/content-governance.ts`, says in its header comment that it *"deliberately detects credentials, not general PII"*. I ran it on the same kinds of text (`scripts/check-content-governance.ts`, output in `results/content-governance.txt`):
+Both refusals above came from the model's own judgment. Nothing in OpenDuet's prompt tells it not to email card numbers. The only mention is about typing one into a web form in its own browser, through a masked box the model never sees. The code-level check, `openbot/server/src/plugins/content-governance.ts`, says in its header comment that it *"deliberately detects credentials, not general PII"*. I ran it on the same kinds of text (`scripts/check-content-governance.ts`, output in `results/content-governance.txt`):
 
 ```
 card number + CVC          passes (not flagged)
